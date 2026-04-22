@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Contas",
+    "slug": "contas",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F0F13"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.douglasrodrigues.contas"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F0F13"
+      },
+      "package": "com.douglasrodrigues.contas"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true,
+          "useSQLCipher": false
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permita que o Contas use o microfone para transcrever suas mensagens.",
+          "speechRecognitionPermission": "Permita que o Contas reconheça sua fala para preencher o chat.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d3017942-e4a9-4e3a-9d8e-fcfc72e2ccab"
+      }
+    },
+    "owner": "douuglinha"
+  }
+}
