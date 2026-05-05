@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
 import { useDatabase } from '../hooks/useDatabase';
-import { getAllContas } from '../database/contasRepository';
+import { getAllContas, payMonthBills } from '../database/contasRepository';
 import { Icon } from '../components/ui/Icon';
 import { Card } from '../components/ui/Card';
 import { Chip } from '../components/ui/Chip';
@@ -40,9 +40,13 @@ function filterLabel(filter: HeroFilter): string {
 }
 
 function CategoryBreakdown({ bills, T }: { bills: Conta[]; T: any }) {
+  const { hideValues } = useAppContext();
   const sum = computeSummary(bills);
   const entries = Object.entries(sum.byCat)
-    .map(([k, v]) => ({ cat: k, ...v, info: CATEGORIES[k] || CATEGORIES.outros }))
+    .map(([k, v]) => {
+      const info = CATEGORIES[k] || { ...CATEGORIES.outros, label: k.charAt(0).toUpperCase() + k.slice(1) };
+      return { cat: k, ...v, info };
+    })
     .sort((a, b) => b.total - a.total);
   const total = sum.totalMonth;
 
@@ -63,7 +67,7 @@ function CategoryBreakdown({ bills, T }: { bills: Conta[]; T: any }) {
               {Math.round((e.total / total) * 100)}%
             </Text>
             <Text style={{ fontSize: 14, color: T.text, fontWeight: '500', letterSpacing: -0.1, minWidth: 80, textAlign: 'right' }}>
-              R$ {formatBRL(e.total)}
+              {hideValues ? '••••' : `R$ ${formatBRL(e.total)}`}
             </Text>
           </View>
         ))}
@@ -72,8 +76,15 @@ function CategoryBreakdown({ bills, T }: { bills: Conta[]; T: any }) {
   );
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'bom dia';
+  if (hour >= 12 && hour < 18) return 'boa tarde';
+  return 'boa noite';
+}
+
 export function HomeScreen() {
-  const { T } = useAppContext();
+  const { T, hideValues, toggleHideValues, settings } = useAppContext();
   const { db, isReady } = useDatabase();
   const navigation = useNavigation<any>();
   const [bills, setBills] = useState<Conta[]>([]);
@@ -115,12 +126,29 @@ export function HomeScreen() {
           backgroundColor: T.accent,
           alignItems: 'center', justifyContent: 'center',
         }}>
-          <Text style={{ color: T.accentInk, fontWeight: '700', fontSize: 15, letterSpacing: -0.3 }}>G</Text>
+          <Text style={{ color: T.accentInk, fontWeight: '700', fontSize: 15, letterSpacing: -0.3 }}>
+            {settings.userName ? settings.userName.charAt(0).toUpperCase() : 'V'}
+          </Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: '600' }}>Olá, bom dia</Text>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: T.text, letterSpacing: -0.3 }}>Você</Text>
+          <Text style={{ fontSize: 11, color: T.textFaint, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: '600' }}>
+            Olá, {getGreeting()}
+          </Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: T.text, letterSpacing: -0.3 }}>
+            {settings.userName || 'Você'}
+          </Text>
         </View>
+        <TouchableOpacity
+          onPress={toggleHideValues}
+          activeOpacity={0.7}
+          style={{
+            width: 40, height: 40, borderRadius: 20,
+            backgroundColor: T.surface, borderWidth: 1, borderColor: T.border,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Icon name={hideValues ? 'eyeOff' : 'eye'} size={18} color={T.text} stroke={1.8}/>
+        </TouchableOpacity>
         <TouchableOpacity
           activeOpacity={0.7}
           style={{
@@ -209,12 +237,20 @@ export function HomeScreen() {
 
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginBottom: 4 }}>
             <Text style={{ fontSize: 20, color: T.text, fontWeight: '500', letterSpacing: -0.4 }}>R$</Text>
-            <Text style={{ fontSize: 44, fontWeight: '600', color: T.text, letterSpacing: -1.6, lineHeight: 48 }}>
-              {formatBRL(heroSum.totalPending).split(',')[0]}
-            </Text>
-            <Text style={{ fontSize: 22, color: T.textDim, fontWeight: '500', letterSpacing: -0.6, paddingBottom: 2 }}>
-              ,{formatBRL(heroSum.totalPending).split(',')[1]}
-            </Text>
+            {hideValues ? (
+              <Text style={{ fontSize: 44, fontWeight: '600', color: T.text, letterSpacing: -1.6, lineHeight: 48, transform: [{ translateY: 6 }] }}>
+                ••••
+              </Text>
+            ) : (
+              <>
+                <Text style={{ fontSize: 44, fontWeight: '600', color: T.text, letterSpacing: -1.6, lineHeight: 48 }}>
+                  {formatBRL(heroSum.totalPending).split(',')[0]}
+                </Text>
+                <Text style={{ fontSize: 22, color: T.textDim, fontWeight: '500', letterSpacing: -0.6, paddingBottom: 2 }}>
+                  ,{formatBRL(heroSum.totalPending).split(',')[1]}
+                </Text>
+              </>
+            )}
           </View>
           <Text style={{ fontSize: 13, color: T.textDim, letterSpacing: -0.15 }}>
             {heroSum.pending.length} pendentes · R$ {formatBRL(heroSum.totalPaid)} já pagos
@@ -244,17 +280,39 @@ export function HomeScreen() {
               <Icon name="sparkle" size={15} color={T.accentInk} stroke={2.5}/>
               <Text style={{ color: T.accentInk, fontSize: 14, fontWeight: '600', letterSpacing: -0.15 }}>Adicionar conta</Text>
             </TouchableOpacity>
+
+            {heroSum.pending.length > 0 && (
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    await payMonthBills(db, heroMonthKey);
+                    getAllContas(db, 'todas').then(setBills).catch(console.error);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: T.chipBg, borderWidth: 1, borderColor: T.border,
+                  borderRadius: 100, paddingVertical: 12, paddingHorizontal: 16,
+                  flexDirection: 'row', alignItems: 'center', gap: 6,
+                }}
+              >
+                <Icon name="check" size={15} color={T.text} stroke={2}/>
+                <Text style={{ color: T.text, fontSize: 14, fontWeight: '500', letterSpacing: -0.15 }}>Pagar mês</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               onPress={() => navigation.navigate('Summary')}
               activeOpacity={0.85}
               style={{
                 backgroundColor: T.chipBg, borderWidth: 1, borderColor: T.border,
-                borderRadius: 100, paddingVertical: 12, paddingHorizontal: 18,
+                borderRadius: 100, paddingVertical: 12, paddingHorizontal: 16,
                 flexDirection: 'row', alignItems: 'center', gap: 6,
               }}
             >
               <Icon name="pie" size={15} color={T.text} stroke={1.8}/>
-              <Text style={{ color: T.text, fontSize: 14, fontWeight: '500', letterSpacing: -0.15 }}>Resumo</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -271,7 +329,7 @@ export function HomeScreen() {
                     Essa semana
                   </Text>
                   <Text style={{ fontSize: 16, fontWeight: '600', color: T.text, letterSpacing: -0.4 }}>
-                    Você deve pagar {formatBRLFull(dueThisWeekTotal)}
+                    Você deve pagar {hideValues ? '••••' : formatBRLFull(dueThisWeekTotal)}
                   </Text>
                   <Text style={{ fontSize: 12, color: T.textDim, marginTop: 2 }}>
                     em {dueThisWeek.length} {dueThisWeek.length === 1 ? 'conta' : 'contas'} até domingo

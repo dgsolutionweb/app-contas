@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput, Alert,
+  View, Text, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Modal, ActivityIndicator
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAppContext } from '../context/AppContext';
@@ -62,11 +62,14 @@ export function ProfileScreen() {
   const [showKey, setShowKey] = useState(false);
   const [apiKey, setApiKey] = useState(settings.geminiApiKey);
   const [dueDay, setDueDay] = useState(String(settings.defaultDueDay));
+  const [closingDay, setClosingDay] = useState(String(settings.cardClosingDay || ''));
   const [aiEnabled, setAiEnabled] = useState(!!settings.geminiApiKey);
   const [userName, setUserName] = useState(settings.userName || '');
   const [editingName, setEditingName] = useState(false);
   const isSavingDueDayRef = useRef(false);
+  const isSavingClosingDayRef = useRef(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportModalVisible, setIsExportModalVisible] = useState(false);
 
   const displayName = userName || 'Seu nome';
   const initials = (userName || 'U').charAt(0).toUpperCase();
@@ -74,6 +77,10 @@ export function ProfileScreen() {
   useEffect(() => {
     setDueDay(String(settings.defaultDueDay));
   }, [settings.defaultDueDay]);
+
+  useEffect(() => {
+    setClosingDay(settings.cardClosingDay ? String(settings.cardClosingDay) : '');
+  }, [settings.cardClosingDay]);
 
   async function handleSaveApiKey() {
     const trimmed = apiKey.trim();
@@ -104,6 +111,35 @@ export function ProfileScreen() {
     }
   }
 
+  async function handleSaveClosingDay() {
+    const trimmed = closingDay.trim();
+    const day = trimmed ? parseInt(trimmed, 10) : 0;
+    if (trimmed && (isNaN(day) || day < 1 || day > 31)) {
+      Alert.alert('Dia inválido', 'Informe um dia entre 1 e 31.');
+      return;
+    }
+    if (day === settings.cardClosingDay) {
+      setClosingDay(day ? String(day) : '');
+      return;
+    }
+    if (isSavingClosingDayRef.current) {
+      return;
+    }
+    isSavingClosingDayRef.current = true;
+    try {
+      await updateSetting('card_closing_day', String(day));
+      setClosingDay(day ? String(day) : '');
+      Alert.alert(
+        day ? 'Fechamento atualizado' : 'Fechamento desativado',
+        day
+          ? `Novas contas cadastradas depois do dia ${day} cairão no vencimento do próximo mês.`
+          : 'O app voltou a usar apenas o dia padrão de vencimento.'
+      );
+    } finally {
+      isSavingClosingDayRef.current = false;
+    }
+  }
+
   async function handleSaveName() {
     setEditingName(false);
     await updateSetting('user_name', userName.trim());
@@ -120,9 +156,13 @@ export function ProfileScreen() {
     ]);
   }
 
-  async function handleExportPdf() {
-    if (!db || isExportingPdf) return;
+  const handleExportPdf = () => {
+    setIsExportModalVisible(true);
+  };
 
+  const executeExport = async (period: 'mensal' | 'completo') => {
+    setIsExportModalVisible(false);
+    if (!db || isExportingPdf) return;
     setIsExportingPdf(true);
     try {
       const result = await exportFinancialSummaryPdf({
@@ -130,22 +170,16 @@ export function ProfileScreen() {
         T,
         userName: settings.userName,
         defaultDueDay: settings.defaultDueDay,
+        cardClosingDay: settings.cardClosingDay,
+        period,
       });
 
-      if (result.type === 'print_dialog') {
-        Alert.alert(
-          'Resumo pronto',
-          'A janela de impressão foi aberta. Escolha "Salvar em PDF" ou a opção de download do navegador.'
-        );
-      } else if (result.type === 'saved') {
-        Alert.alert(
-          'PDF gerado',
-          `O relatório foi salvo em:\n${result.uri}`
-        );
+      if (result.type === 'saved') {
+        Alert.alert('Sucesso', 'PDF salvo em: ' + result.uri);
       }
-    } catch (error) {
-      console.error('handleExportPdf error:', error);
-      Alert.alert('Erro ao exportar', 'Não foi possível gerar o resumo em PDF agora.');
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Ocorreu um erro ao gerar o PDF');
     } finally {
       setIsExportingPdf(false);
     }
@@ -219,6 +253,31 @@ export function ProfileScreen() {
               onSubmitEditing={handleSaveDay}
               keyboardType="number-pad"
               maxLength={2}
+              style={{ fontSize: 13, color: T.textDim, textAlign: 'right', minWidth: 32, padding: 0 }}
+            />
+            <Icon name="chevR" size={16} color={T.textFaint} stroke={2}/>
+          </View>
+          <View style={{
+            flexDirection: 'row', alignItems: 'center', gap: 14,
+            paddingHorizontal: 20, paddingVertical: 14,
+            borderBottomWidth: 1, borderBottomColor: T.border,
+          }}>
+            <Icon name="calendar" size={18} color={T.text} stroke={1.8}/>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: T.text, fontWeight: '500', letterSpacing: -0.15 }}>Dia de fechamento do cartão</Text>
+              <Text style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>
+                Depois desse dia, novas contas vão para o próximo mês
+              </Text>
+            </View>
+            <TextInput
+              value={closingDay}
+              onChangeText={setClosingDay}
+              onBlur={handleSaveClosingDay}
+              onSubmitEditing={handleSaveClosingDay}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder="-"
+              placeholderTextColor={T.textFaint}
               style={{ fontSize: 13, color: T.textDim, textAlign: 'right', minWidth: 32, padding: 0 }}
             />
             <Icon name="chevR" size={16} color={T.textFaint} stroke={2}/>
@@ -298,6 +357,51 @@ export function ProfileScreen() {
           Contas · v2.0.0
         </Text>
       </ScrollView>
+
+      {/* Export Modal */}
+      <Modal visible={isExportModalVisible} transparent animationType="fade" onRequestClose={() => setIsExportModalVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: '85%', maxWidth: 400, backgroundColor: T.surface, borderRadius: 16, overflow: 'hidden', ...Platform.select({ web: { boxShadow: '0 8px 30px rgba(0,0,0,0.12)' }, default: { elevation: 8 } }) }}>
+            <View style={{ padding: 24, borderBottomWidth: 1, borderColor: T.borderStrong, alignItems: 'center' }}>
+              <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: T.accent + '20', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                <Icon name="copy" size={24} color={T.accent} stroke={2} />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: T.text, marginBottom: 8, textAlign: 'center' }}>
+                Exportar Relatório
+              </Text>
+              <Text style={{ fontSize: 14, color: T.textDim, textAlign: 'center', lineHeight: 20 }}>
+                Selecione o tipo de relatório financeiro que você deseja salvar em PDF.
+              </Text>
+            </View>
+
+            <TouchableOpacity style={{ padding: 20, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: T.borderStrong }} onPress={() => executeExport('mensal')}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: T.borderStrong, justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
+                <Icon name="calendar" size={20} color={T.textDim} stroke={1.5} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '500', color: T.text, marginBottom: 2 }}>Apenas Mês Atual</Text>
+                <Text style={{ fontSize: 13, color: T.textFaint }}>Contas com vencimento neste mês</Text>
+              </View>
+              <Icon name="chevronRight" size={20} color={T.textFaint} stroke={1.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={{ padding: 20, flexDirection: 'row', alignItems: 'center' }} onPress={() => executeExport('completo')}>
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: T.accent + '15', justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
+                <Icon name="database" size={20} color={T.accent} stroke={1.5} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '500', color: T.text, marginBottom: 2 }}>Histórico Completo</Text>
+                <Text style={{ fontSize: 13, color: T.textFaint }}>Todas as contas cadastradas</Text>
+              </View>
+              <Icon name="chevronRight" size={20} color={T.textFaint} stroke={1.5} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={{ padding: 16, backgroundColor: T.surfaceHi, alignItems: 'center', borderTopWidth: 1, borderColor: T.borderStrong }} onPress={() => setIsExportModalVisible(false)}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: T.textDim }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

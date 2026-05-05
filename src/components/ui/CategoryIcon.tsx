@@ -10,7 +10,8 @@ interface Props {
 }
 
 export function CategoryIcon({ category, size = 40, rounded = 12 }: Props) {
-  const cat = CATEGORIES[category] || CATEGORIES.outros;
+  const normalizedCat = (category || 'outros').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+  const cat = CATEGORIES[normalizedCat] || CATEGORIES.outros;
   return (
     <View style={{
       width: size, height: size, borderRadius: rounded,

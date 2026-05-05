@@ -4,6 +4,7 @@ import { CategoryIcon } from './CategoryIcon';
 import type { ThemeTokens } from '../../theme/tokens';
 import type { Conta } from '../../types';
 import { daysUntil, formatDueShort, formatBRLFull } from '../../utils/billHelpers';
+import { useAppContext } from '../../context/AppContext';
 
 interface Props {
   bill: Conta;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function BillRow({ bill, T, onPress, showDate = true, dense = false }: Props) {
+  const { hideValues } = useAppContext();
   const d = daysUntil(bill.vencimento);
   const overdue = !bill.pago && d < 0;
 
@@ -50,7 +52,7 @@ export function BillRow({ bill, T, onPress, showDate = true, dense = false }: Pr
           letterSpacing: -0.3,
           textDecorationLine: bill.pago ? 'line-through' : 'none',
         }}>
-          {formatBRLFull(bill.valor)}
+          {hideValues ? '••••' : formatBRLFull(bill.valor)}
         </Text>
       </View>
     </TouchableOpacity>

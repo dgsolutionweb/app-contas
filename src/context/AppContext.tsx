@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
-import type { SQLiteDatabase } from 'expo-sqlite';
 import type { ThemeColors, AppSettings } from '../types';
 import { type ThemeTokens, darkTokens, lightTokens } from '../theme/tokens';
-import { getDatabase } from '../database/setup';
 import { getSetting, setSetting } from '../database/settingsRepository';
 
 const darkColors: ThemeColors = {
@@ -40,13 +38,15 @@ interface AppContextValue {
   isDark: boolean;
   themeMode: 'dark' | 'light';
   setThemeMode: (mode: 'dark' | 'light') => void;
-  db: SQLiteDatabase | null;
+  db: any | null; // Kept for backwards compatibility if hooks use it, even though it's null
   isDbReady: boolean;
   isLoading: boolean;
   settings: AppSettings;
   onboarded: boolean;
   setOnboarded: () => Promise<void>;
   updateSetting: (key: string, value: string) => Promise<void>;
+  hideValues: boolean;
+  toggleHideValues: () => void;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -55,13 +55,15 @@ const AppContext = createContext<AppContextValue>({
   isDark: false,
   themeMode: 'light',
   setThemeMode: () => {},
-  db: null,
+  db: {},
   isDbReady: false,
   isLoading: true,
-  settings: { defaultDueDay: 5, geminiApiKey: '', userName: '' },
+  settings: { defaultDueDay: 5, cardClosingDay: 0, geminiApiKey: '', userName: '' },
   onboarded: false,
   setOnboarded: async () => {},
   updateSetting: async () => {},
+  hideValues: false,
+  toggleHideValues: () => {},
 });
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -72,61 +74,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const colors = isDark ? darkColors : lightColors;
   const T = isDark ? darkTokens : lightTokens;
 
-  const [db, setDb] = useState<SQLiteDatabase | null>(null);
   const [isDbReady, setIsDbReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [settings, setSettings] = useState<AppSettings>({ defaultDueDay: 5, geminiApiKey: '', userName: '' });
+  const [settings, setSettings] = useState<AppSettings>({ defaultDueDay: 5, cardClosingDay: 0, geminiApiKey: '', userName: '' });
   const [onboarded, setOnboardedState] = useState(false);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (isLoading) {
-        console.warn('Database initialization timeout, proceeding without DB');
-        setIsLoading(false);
-      }
-    }, 5000);
-
-    getDatabase()
-      .then(async (database) => {
-        clearTimeout(timeoutId);
-        setDb(database);
-        const defaultDueDay = await getSetting(database, 'default_due_day');
-        const geminiApiKey = await getSetting(database, 'gemini_api_key');
-        const themeSetting = await getSetting(database, 'theme_mode');
+    const init = async () => {
+      try {
+        const defaultDueDay = await getSetting(null, 'default_due_day');
+        const cardClosingDay = await getSetting(null, 'card_closing_day');
+        const geminiApiKey = await getSetting(null, 'gemini_api_key');
+        const themeSetting = await getSetting(null, 'theme_mode');
+        
         if (themeSetting === 'light' || themeSetting === 'dark') {
           setThemeMode(themeSetting);
         }
-        const onboardedSetting = await getSetting(database, 'onboarded');
+        
+        const onboardedSetting = await getSetting(null, 'onboarded');
         if (onboardedSetting === '1') setOnboardedState(true);
-        const userNameSetting = await getSetting(database, 'user_name');
+        
+        const userNameSetting = await getSetting(null, 'user_name');
+        
         setSettings({
           defaultDueDay: defaultDueDay ? parseInt(defaultDueDay, 10) : 5,
+          cardClosingDay: cardClosingDay ? parseInt(cardClosingDay, 10) : 0,
           geminiApiKey: geminiApiKey ?? '',
           userName: userNameSetting ?? '',
         });
+        
         setIsDbReady(true);
+      } catch (err) {
+        console.error('Failed to load settings from Supabase:', err);
+      } finally {
         setIsLoading(false);
-      })
-      .catch((err) => {
-        clearTimeout(timeoutId);
-        console.error('Failed to open database:', err);
-        setIsLoading(false);
-      });
-
-    return () => clearTimeout(timeoutId);
+      }
+    };
+    
+    init();
   }, []);
 
   const setOnboarded = async () => {
-    if (!db) { setOnboardedState(true); return; }
-    await setSetting(db, 'onboarded', '1');
+    await setSetting(null, 'onboarded', '1');
     setOnboardedState(true);
   };
 
   const updateSetting = async (key: string, value: string) => {
-    if (!db) return;
-    await setSetting(db, key, value);
+    await setSetting(null, key, value);
     if (key === 'default_due_day') {
       setSettings((prev) => ({ ...prev, defaultDueDay: parseInt(value, 10) }));
+    } else if (key === 'card_closing_day') {
+      setSettings((prev) => ({ ...prev, cardClosingDay: parseInt(value, 10) }));
     } else if (key === 'gemini_api_key') {
       setSettings((prev) => ({ ...prev, geminiApiKey: value }));
     } else if (key === 'user_name') {
@@ -136,8 +134,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const [hideValues, setHideValues] = useState(false);
+  const toggleHideValues = () => setHideValues(prev => !prev);
+
   return (
-    <AppContext.Provider value={{ colors, T, isDark, themeMode, setThemeMode, db, isDbReady, isLoading, settings, onboarded, setOnboarded, updateSetting }}>
+    <AppContext.Provider value={{ colors, T, isDark, themeMode, setThemeMode, db: {}, isDbReady, isLoading, settings, onboarded, setOnboarded, updateSetting, hideValues, toggleHideValues }}>
       {children}
     </AppContext.Provider>
   );

@@ -76,6 +76,7 @@ export interface ThemeColors {
 
 export interface AppSettings {
   defaultDueDay: number;
+  cardClosingDay: number;
   geminiApiKey: string;
   userName: string;
 }

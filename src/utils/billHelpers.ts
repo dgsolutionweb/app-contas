@@ -9,7 +9,10 @@ export function formatBRLFull(n: number): string {
 }
 
 export function parseISODate(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number);
+  const parts = s.split('T')[0].split('-');
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
   return new Date(y, m - 1, d);
 }
 
@@ -57,10 +60,12 @@ export function computeSummary(bills: Conta[]): BillSummary {
 
   const byCat: Record<string, { total: number; count: number; paid: number }> = {};
   for (const b of bills) {
-    if (!byCat[b.categoria]) byCat[b.categoria] = { total: 0, count: 0, paid: 0 };
-    byCat[b.categoria].total += b.valor;
-    byCat[b.categoria].count += 1;
-    if (b.pago) byCat[b.categoria].paid += b.valor;
+    const rawCat = b.categoria || 'outros';
+    const cat = rawCat.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+    if (!byCat[cat]) byCat[cat] = { total: 0, count: 0, paid: 0 };
+    byCat[cat].total += b.valor;
+    byCat[cat].count += 1;
+    if (b.pago) byCat[cat].paid += b.valor;
   }
 
   return {

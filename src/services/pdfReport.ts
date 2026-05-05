@@ -14,11 +14,13 @@ type ExportResult =
   | { type: 'saved'; uri: string }
   | { type: 'print_dialog' };
 
-interface ExportParams {
-  db: SQLiteDatabase;
+export interface ExportParams {
+  db: any;
   T: ThemeTokens;
   userName?: string;
-  defaultDueDay: number;
+  defaultDueDay?: number;
+  cardClosingDay?: number;
+  period?: 'mensal' | 'completo';
 }
 
 function escapeHtml(value: string): string {
@@ -162,22 +164,24 @@ function buildCategoryRows(entries: Array<{ categoria: string; total: number }>,
 function buildReportHtml(params: {
   T: ThemeTokens;
   userName: string;
-  defaultDueDay: number;
+  defaultDueDay?: number;
+  cardClosingDay?: number;
   yearMonth: string;
-  monthlySummary: Awaited<ReturnType<typeof getMonthlySummary>>;
   allBills: Conta[];
   overdue: Conta[];
   upcoming: Conta[];
+  periodLabel: string;
 }): string {
   const {
     T,
     userName,
     defaultDueDay,
+    cardClosingDay,
     yearMonth,
-    monthlySummary,
     allBills,
     overdue,
     upcoming,
+    periodLabel,
   } = params;
 
   const overall = computeSummary(allBills);
@@ -186,8 +190,6 @@ function buildReportHtml(params: {
   const recurringCount = allBills.filter((bill) => bill.recorrente).length;
   const generatedAt = formatGeneratedAt();
   const monthLabel = formatMonthLabel(yearMonth);
-  const topCategory = monthlySummary.porCategoria[0];
-  const completionPct = monthlySummary.total > 0 ? Math.round((monthlySummary.totalPago / monthlySummary.total) * 100) : 0;
 
   return `
 <!DOCTYPE html>
@@ -303,7 +305,7 @@ function buildReportHtml(params: {
       }
       .progress-fill {
         height: 100%;
-        width: ${completionPct}%;
+        width: ${overall.totalMonth > 0 ? Math.round((overall.totalPaid / overall.totalMonth) * 100) : 0}%;
         background: ${T.accent};
       }
       .stats-grid {
@@ -509,26 +511,27 @@ function buildReportHtml(params: {
         <div class="eyebrow">Contas · Resumo em PDF</div>
         <h1>Relatório financeiro completo</h1>
         <p>
-          Panorama consolidado de ${escapeHtml(userName)} com visão de ${escapeHtml(monthLabel)},
-          status das contas, categorias, vencimentos críticos e histórico integral para compartilhar ou arquivar.
+          Panorama consolidado de ${escapeHtml(userName)} com visão do ${escapeHtml(periodLabel.toLowerCase())},
+          status das contas, categorias, vencimentos críticos e base integral para compartilhar ou arquivar.
         </p>
 
         <div class="hero-grid">
           <div class="hero-card">
-            <div class="hero-stat-label">Total pendente do mês</div>
-            <div class="hero-total">${escapeHtml(formatCurrency(monthlySummary.totalPendente))}</div>
+            <div class="hero-stat-label">Total pendente geral</div>
+            <div class="hero-total">${escapeHtml(formatCurrency(overall.totalPending))}</div>
             <div class="hero-note">
-              ${monthlySummary.count - monthlySummary.countPago} contas em aberto ·
-              ${completionPct}% do mês já quitado
+              ${pendingBills.length} contas em aberto ·
+              ${overall.totalMonth > 0 ? Math.round((overall.totalPaid / overall.totalMonth) * 100) : 0}% do total já quitado
             </div>
-            <div class="progress-track"><div class="progress-fill"></div></div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${overall.totalMonth > 0 ? Math.round((overall.totalPaid / overall.totalMonth) * 100) : 0}%"></div></div>
           </div>
           <div class="hero-card">
             <div class="hero-stat-label">Gerado em</div>
             <div class="hero-total" style="font-size:18px; line-height:1.3; margin-top:12px;">${escapeHtml(generatedAt)}</div>
             <div class="hero-note">
               Dia padrão de vencimento: ${defaultDueDay}<br />
-              Referência: ${escapeHtml(monthLabel)}
+              Fechamento do cartão: ${cardClosingDay ? `dia ${cardClosingDay}` : 'não configurado'}<br />
+              Referência: ${escapeHtml(periodLabel)}
             </div>
           </div>
         </div>
@@ -536,14 +539,14 @@ function buildReportHtml(params: {
 
       <section class="stats-grid">
         <div class="stat-card">
-          <div class="section-label">Total do mês</div>
-          <div class="stat-value">${escapeHtml(formatCurrency(monthlySummary.total))}</div>
-          <div class="stat-sub">${monthlySummary.count} contas previstas em ${escapeHtml(monthlySummary.mes)}</div>
+          <div class="section-label">Total registrado</div>
+          <div class="stat-value">${escapeHtml(formatCurrency(overall.totalMonth))}</div>
+          <div class="stat-sub">${allBills.length} contas cadastradas na base</div>
         </div>
         <div class="stat-card">
           <div class="section-label">Já pago</div>
-          <div class="stat-value">${escapeHtml(formatCurrency(monthlySummary.totalPago))}</div>
-          <div class="stat-sub">${monthlySummary.countPago} conta(s) quitadas no período</div>
+          <div class="stat-value">${escapeHtml(formatCurrency(overall.totalPaid))}</div>
+          <div class="stat-sub">${paidBills.length} conta(s) quitadas no total</div>
         </div>
         <div class="stat-card">
           <div class="section-label">Em atraso</div>
@@ -554,7 +557,7 @@ function buildReportHtml(params: {
           <div class="section-label">Recorrentes</div>
           <div class="stat-value">${recurringCount}</div>
           <div class="stat-sub">
-            ${topCategory ? `Maior categoria do mês: ${(CATEGORIES[topCategory.categoria] ?? CATEGORIES.outros).label}` : 'Sem categoria dominante'}
+            ${Object.keys(overall.byCat).length > 0 ? `Maior cat: ${(CATEGORIES[Object.entries(overall.byCat).sort((a,b) => b[1].total - a[1].total)[0][0]] ?? CATEGORIES.outros).label}` : 'Sem categoria dominante'}
           </div>
         </div>
       </section>
@@ -563,14 +566,14 @@ function buildReportHtml(params: {
         <div class="section-header">
           <div>
             <div class="section-title">Visão executiva</div>
-            <div class="section-sub">Resumo do comportamento financeiro deste mês</div>
+            <div class="section-sub">Resumo do comportamento financeiro de ${escapeHtml(periodLabel.toLowerCase())}</div>
           </div>
-          <div class="section-sub">${escapeHtml(monthlySummary.mes)}</div>
+          <div class="section-sub">${escapeHtml(periodLabel)}</div>
         </div>
         <div class="section-grid">
           <div class="card">
-            <div class="section-label">Distribuição por categoria</div>
-            ${buildCategoryRows(monthlySummary.porCategoria, monthlySummary.total)}
+            <div class="section-label">Distribuição geral por categoria</div>
+            ${buildCategoryRows(Object.entries(overall.byCat).map(([categoria, info]) => ({ categoria, total: info.total })).sort((a, b) => b.total - a.total), overall.totalMonth)}
           </div>
           <div class="card">
             <div class="section-label">Alertas e próximos passos</div>
@@ -689,33 +692,55 @@ function buildReportHtml(params: {
   `;
 }
 
-export async function exportFinancialSummaryPdf({
-  db,
-  T,
-  userName,
-  defaultDueDay,
-}: ExportParams): Promise<ExportResult> {
+export async function exportFinancialSummaryPdf(params: ExportParams): Promise<ExportResult> {
+  const { db, T, userName, defaultDueDay, cardClosingDay, period } = params;
   const yearMonth = currentYearMonth();
-  const [allBills, monthlySummary, upcoming, overdue] = await Promise.all([
+
+  const [allContas, upcoming, overdue] = await Promise.all([
     getAllContas(db, 'todas'),
-    getMonthlySummary(db, yearMonth),
     getUpcomingContas(db, 7),
     getOverdueContas(db),
   ]);
+
+  const allBills = period === 'mensal' 
+    ? allContas.filter(b => b.vencimento.startsWith(yearMonth))
+    : allContas;
 
   const html = buildReportHtml({
     T,
     userName: userName?.trim() || 'Você',
     defaultDueDay,
+    cardClosingDay,
     yearMonth,
-    monthlySummary,
     allBills,
     upcoming,
     overdue,
+    periodLabel: period === 'mensal' ? `Mês Atual (${formatMonthLabel(yearMonth)})` : 'Histórico Completo'
   });
 
   if (Platform.OS === 'web') {
-    await Print.printToFileAsync({ html });
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    if (iframe.contentWindow) {
+      iframe.contentWindow.document.open();
+      iframe.contentWindow.document.write(html);
+      iframe.contentWindow.document.close();
+      
+      // Pequeno atraso para garantir que estilos sejam aplicados antes de imprimir
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        // Remove após abrir o diálogo
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 500);
+    }
     return { type: 'print_dialog' };
   }
 

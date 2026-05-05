@@ -156,7 +156,7 @@ export function useChat(db: SQLiteDatabase | null, settings: AppSettings) {
             }
             let vencimento = intent.vencimento;
             if (!vencimento) {
-              vencimento = getDefaultDueDate(settings.defaultDueDay);
+              vencimento = getDefaultDueDate(settings.defaultDueDay, settings.cardClosingDay);
             }
 
             const parcelas = intent.hasOwnProperty('parcelas') && Number(intent.parcelas) > 1 ? Number(intent.parcelas) : 1;
@@ -422,7 +422,7 @@ export function useChat(db: SQLiteDatabase | null, settings: AppSettings) {
         setIsProcessing(false);
       }
     },
-    [db, addMessage, settings.geminiApiKey, settings.defaultDueDay, pendingEdit]
+    [db, addMessage, settings.geminiApiKey, settings.defaultDueDay, settings.cardClosingDay, pendingEdit]
   );
 
   const handleConfirm = useCallback(

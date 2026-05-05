@@ -161,12 +161,13 @@ export function formatDisplayDate(isoDate: string): string {
 }
 
 /**
- * Returns the default due date based on a configured day of month.
- * If the day has already passed this month, returns the same day next month.
+ * Returns the default due date based on the configured due day.
+ * If a card closing day is configured and today is after it, the due date moves to next month.
  */
-export function getDefaultDueDate(dayOfMonth: number): string {
+export function getDefaultDueDate(dayOfMonth: number, cardClosingDay = 0): string {
   const today = startOfDay(new Date());
   const normalizedDay = Math.min(Math.max(Math.trunc(dayOfMonth), 1), 31);
+  const normalizedClosingDay = Math.trunc(cardClosingDay);
 
   const buildCandidate = (year: number, month: number) => {
     const candidate = new Date(year, month, normalizedDay);
@@ -183,7 +184,9 @@ export function getDefaultDueDate(dayOfMonth: number): string {
   let month = today.getMonth();
   let candidate = buildCandidate(year, month);
 
-  if (candidate < today) {
+  const isAfterClosingDay = normalizedClosingDay >= 1 && normalizedClosingDay <= 31 && today.getDate() > normalizedClosingDay;
+
+  if (candidate < today || isAfterClosingDay) {
     month += 1;
     if (month > 11) {
       month = 0;
