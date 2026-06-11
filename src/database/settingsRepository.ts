@@ -18,8 +18,13 @@ export async function getSetting(_db: any, key: string): Promise<string | null> 
 export async function setSetting(_db: any, key: string, value: string): Promise<void> {
   const { error } = await supabase
     .from('settings')
-    .upsert({ key, value });
+    .upsert({ key, value }, { onConflict: 'user_id,key' });
 
+  if (error) throw error;
+}
+
+export async function deleteSetting(_db: any, key: string): Promise<void> {
+  const { error } = await supabase.from('settings').delete().eq('key', key);
   if (error) throw error;
 }
 

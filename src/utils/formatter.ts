@@ -103,6 +103,13 @@ export function formatHelp(): string {
 *Resumo:*
 "resumo do mês" · "total de abril"
 
+*Análises inteligentes:*
+"analise meus gastos"
+"compare este mês com o anterior"
+"maiores despesas do mês"
+"gastos por categoria"
+"previsão dos próximos 3 meses"
+
 *Buscar:*
 "buscar netflix"`;
 }
@@ -113,6 +120,7 @@ export function formatUnknown(): string {
 • "listar pendentes"
 • "paguei internet"
 • "resumo do mês"
+• "analise meus gastos"
 
 Digite *ajuda* para ver todos os comandos.`;
 }
@@ -125,6 +133,7 @@ Você pode me dizer coisas como:
 • "listar pendentes"
 • "paguei internet"
 • "resumo do mês"
+• "compare este mês com o anterior"
 
 Digite *ajuda* para ver todos os comandos.`;
 }

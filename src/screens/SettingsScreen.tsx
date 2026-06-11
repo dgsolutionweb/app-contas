@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Switch,
 } from 'react-native';
 import { useAppContext } from '../context/AppContext';
 import { clearHistory } from '../database/messagesRepository';
@@ -17,9 +16,6 @@ export function SettingsScreen({ navigation }: { navigation: any }) {
   const { colors, settings, updateSetting, db } = useAppContext();
   const [dueDay, setDueDay] = useState(String(settings.defaultDueDay));
   const [closingDay, setClosingDay] = useState(settings.cardClosingDay ? String(settings.cardClosingDay) : '');
-  const [apiKey, setApiKey] = useState(settings.geminiApiKey);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [useAI, setUseAI] = useState(!!settings.geminiApiKey);
 
   async function handleSaveDay() {
     const day = parseInt(dueDay, 10);
@@ -47,18 +43,6 @@ export function SettingsScreen({ navigation }: { navigation: any }) {
     );
   }
 
-  async function handleSaveApiKey() {
-    const trimmed = apiKey.trim();
-    await updateSetting('gemini_api_key', trimmed);
-    setUseAI(!!trimmed);
-    Alert.alert(
-      trimmed ? 'IA ativada!' : 'IA desativada',
-      trimmed
-        ? 'O Gemini 2.5 Flash agora vai interpretar suas mensagens.'
-        : 'Voltando ao modo manual. Use comandos como "adicionar conta R$100 dia 10".'
-    );
-  }
-
   function handleClearChat() {
     Alert.alert(
       'Limpar chat',
@@ -81,62 +65,10 @@ export function SettingsScreen({ navigation }: { navigation: any }) {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>
-        Inteligência Artificial
-      </Text>
+      <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>Inteligência Artificial</Text>
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.toggleLabel, { color: colors.text }]}>
-            Usar Gemini 2.5 Flash
-          </Text>
-          <Switch
-            value={useAI}
-            onValueChange={(val) => setUseAI(val)}
-            trackColor={{ false: colors.border, true: colors.primary }}
-          />
-        </View>
-
-        {useAI && (
-          <View style={styles.apiSection}>
-            <Text style={[styles.subLabel, { color: colors.text }]}>
-              API Key
-            </Text>
-            <Text style={[styles.description, { color: colors.textMuted }]}>
-              Obtenha gratuitamente em aistudio.google.com
-            </Text>
-            <View style={styles.row}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  },
-                ]}
-                value={apiKey}
-                onChangeText={setApiKey}
-                placeholder="Cole sua API key aqui"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showApiKey}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                style={styles.eyeBtn}
-                onPress={() => setShowApiKey((v) => !v)}
-              >
-                <Text style={{ fontSize: 18 }}>{showApiKey ? '🙈' : '👁'}</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
-              onPress={handleSaveApiKey}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.saveBtnText}>Salvar</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <Text style={[styles.label, { color: colors.text }]}>OpenAI GPT-5.5</Text>
+        <Text style={[styles.description, { color: colors.textMuted }]}>A chave é mantida no servidor e o acesso exige uma sessão autenticada.</Text>
       </View>
 
       <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>

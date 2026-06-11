@@ -5,7 +5,6 @@ import { useAppContext } from '../../context/AppContext';
 import { BillCard } from '../bills/BillCard';
 import { SummaryCard } from '../bills/SummaryCard';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface Props {
   message: ChatMessage;
@@ -32,9 +31,9 @@ function renderContent(text: string, textColor: string, dimColor: string) {
   });
 }
 
-function formatTime(isoString: string): string {
+function formatMessageTimestamp(isoString: string): string {
   try {
-    return format(new Date(isoString), 'HH:mm', { locale: ptBR });
+    return format(new Date(isoString), "dd/MM/yyyy 'às' HH:mm");
   } catch {
     return '';
   }
@@ -108,7 +107,7 @@ export function MessageBubble({ message, onMarkPaid, onConfirm, onCancel }: Prop
           )}
 
           <Text style={{ fontSize: 10, fontWeight: '500', color: timeColor, marginTop: 6, textAlign: 'right', paddingRight: 2 }}>
-            {formatTime(message.criado_em)}
+            {formatMessageTimestamp(message.criado_em)}
           </Text>
         </View>
       ) : (
@@ -163,7 +162,7 @@ export function MessageBubble({ message, onMarkPaid, onConfirm, onCancel }: Prop
           )}
 
           <Text style={{ fontSize: 10, fontWeight: '500', color: timeColor, marginTop: 6, textAlign: 'right' }}>
-            {formatTime(message.criado_em)}
+            {formatMessageTimestamp(message.criado_em)}
           </Text>
         </View>
       )}

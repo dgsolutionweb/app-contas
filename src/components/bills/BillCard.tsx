@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import type { Conta } from '../../types';
 import { formatCurrency } from '../../utils/formatter';
-import { formatDisplayDate } from '../../utils/dateHelpers';
+import { formatCreatedAt, formatDisplayDate } from '../../utils/dateHelpers';
 import { useAppContext } from '../../context/AppContext';
 import { CATEGORIES } from '../../theme/tokens';
 import { Icon } from '../ui/Icon';
@@ -45,7 +45,10 @@ export function BillCard({ conta, onMarkPaid, compact }: Props) {
             {conta.descricao}
           </Text>
           <Text style={{ fontSize: 11, color: overdue ? T.warn : T.textFaint, marginTop: 1 }} numberOfLines={1}>
-            {formatDisplayDate(conta.vencimento)}{overdue ? ' · Vencida' : ''}
+            Vence em {formatDisplayDate(conta.vencimento)}{overdue ? ' · Vencida' : ''}
+          </Text>
+          <Text style={{ fontSize: 10, color: T.textFaint, marginTop: 2 }} numberOfLines={1}>
+            Cadastrada em {formatCreatedAt(conta.criado_em)}
           </Text>
         </View>
 

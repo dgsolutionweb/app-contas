@@ -56,6 +56,11 @@ export type ParsedIntent =
   | { type: 'summary'; yearMonth: string }
   | { type: 'upcoming' }
   | { type: 'overdue' }
+  | { type: 'compare_months'; yearMonth: string }
+  | { type: 'top_expenses'; yearMonth: string; limit: number }
+  | { type: 'category_analysis'; yearMonth: string }
+  | { type: 'forecast'; months: number }
+  | { type: 'insights'; yearMonth: string }
   | { type: 'pay_all' }
   | { type: 'help' }
   | { type: 'unknown' };
@@ -77,6 +82,7 @@ export interface ThemeColors {
 export interface AppSettings {
   defaultDueDay: number;
   cardClosingDay: number;
-  geminiApiKey: string;
   userName: string;
+  openaiConfigured: boolean;
+  openaiKeyHint: string | null;
 }

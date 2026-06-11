@@ -85,6 +85,29 @@ export function parseMessage(text: string): ParsedIntent {
     return { type: 'overdue' };
   }
 
+  // ── FORECAST / FINANCIAL ANALYSIS ────────────────────────────────────────
+  if (/\b(previs[aã]o|proje[cç][aã]o|pr[oó]ximos?\s+meses|quanto\s+vou\s+(?:gastar|pagar))\b/.test(lower)) {
+    const monthsMatch = lower.match(/(\d+)\s+meses?/);
+    return { type: 'forecast', months: monthsMatch ? Math.min(parseInt(monthsMatch[1], 10), 12) : 3 };
+  }
+
+  if (/\b(comparar?|compara[cç][aã]o|diferen[cç]a).*(m[eê]s|meses)|\b(m[eê]s|meses).*(anterior|passado)\b/.test(lower)) {
+    return { type: 'compare_months', yearMonth: parseYearMonth(trimmed) };
+  }
+
+  if (/\b(maiores?|mais\s+caras?|top\s*\d*).*(gastos?|despesas?|contas?)|\b(gastos?|despesas?).*(maiores?|mais\s+caras?)\b/.test(lower)) {
+    const limitMatch = lower.match(/(?:top\s*)?(\d+)/);
+    return { type: 'top_expenses', yearMonth: parseYearMonth(trimmed), limit: limitMatch ? Math.min(parseInt(limitMatch[1], 10), 20) : 5 };
+  }
+
+  if (/\b(categorias?|onde\s+(?:vai|foi)|distribui[cç][aã]o).*(dinheiro|gastos?|despesas?)|\bgastos?\s+por\s+categoria\b/.test(lower)) {
+    return { type: 'category_analysis', yearMonth: parseYearMonth(trimmed) };
+  }
+
+  if (/\b(insights?|analis[ae]|diagn[oó]stico|economizar|economia|organizar|onde\s+estou\s+gastando)\b/.test(lower)) {
+    return { type: 'insights', yearMonth: parseYearMonth(trimmed) };
+  }
+
   // ── PAY ALL ───────────────────────────────────────────────────────────────
   if (/\b(pagar?\s+tudo|quitar?\s+tudo|marcar?\s+tud[ao]\s+como\s+pag[ao]|paguei\s+tudo|paguei\s+todas)\b/.test(lower)) {
     return { type: 'pay_all' };

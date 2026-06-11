@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "web:build": "expo export --platform web",
     "web:serve": "npx serve dist",
-    "doctor": "expo-doctor",
+    "doctor": "npx expo-doctor",
     "prebuild": "expo prebuild",
     "build:android": "eas build --platform android --profile preview",
     "build:ios": "eas build --platform ios --profile preview",

@@ -8,6 +8,7 @@ import { clearHistory } from '../database/messagesRepository';
 import { AppHeader } from '../components/ui/AppHeader';
 import { Icon } from '../components/ui/Icon';
 import { exportFinancialSummaryPdf } from '../services/pdfReport';
+import { deleteOpenAIKey, saveOpenAIKey } from '../services/openaiKey';
 
 function Section({ T, label, children }: { T: any; label: string; children: React.ReactNode }) {
   return (
@@ -40,36 +41,20 @@ function SettingRow({ T, icon, label, value, chevron, last, danger, onPress }: {
   );
 }
 
-function Toggle({ T, on, onToggle }: { T: any; on: boolean; onToggle?: () => void }) {
-  return (
-    <TouchableOpacity onPress={onToggle} activeOpacity={0.8} style={{
-      width: 44, height: 26, borderRadius: 13,
-      backgroundColor: on ? T.accent : T.borderStrong,
-      justifyContent: 'center',
-    }}>
-      <View style={{
-        position: 'absolute', top: 3, left: on ? 21 : 3,
-        width: 20, height: 20, borderRadius: 10,
-        backgroundColor: on ? T.accentInk : '#fff',
-      }}/>
-    </TouchableOpacity>
-  );
-}
-
 export function ProfileScreen() {
-  const { T, themeMode, updateSetting, db, settings } = useAppContext();
+  const { T, themeMode, updateSetting, db, settings, user, signOut, refreshOpenAIKeyStatus } = useAppContext();
   const navigation = useNavigation<any>();
-  const [showKey, setShowKey] = useState(false);
-  const [apiKey, setApiKey] = useState(settings.geminiApiKey);
   const [dueDay, setDueDay] = useState(String(settings.defaultDueDay));
   const [closingDay, setClosingDay] = useState(String(settings.cardClosingDay || ''));
-  const [aiEnabled, setAiEnabled] = useState(!!settings.geminiApiKey);
   const [userName, setUserName] = useState(settings.userName || '');
   const [editingName, setEditingName] = useState(false);
   const isSavingDueDayRef = useRef(false);
   const isSavingClosingDayRef = useRef(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportModalVisible, setIsExportModalVisible] = useState(false);
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
+  const [isSavingOpenaiKey, setIsSavingOpenaiKey] = useState(false);
 
   const displayName = userName || 'Seu nome';
   const initials = (userName || 'U').charAt(0).toUpperCase();
@@ -81,12 +66,6 @@ export function ProfileScreen() {
   useEffect(() => {
     setClosingDay(settings.cardClosingDay ? String(settings.cardClosingDay) : '');
   }, [settings.cardClosingDay]);
-
-  async function handleSaveApiKey() {
-    const trimmed = apiKey.trim();
-    await updateSetting('gemini_api_key', trimmed);
-    setAiEnabled(!!trimmed);
-  }
 
   async function handleSaveDay() {
     const day = parseInt(dueDay, 10);
@@ -152,6 +131,61 @@ export function ProfileScreen() {
         if (!db) return;
         await clearHistory(db);
         Alert.alert('Pronto', 'Histórico apagado.');
+      }},
+    ]);
+  }
+
+  function handleSignOut() {
+    Alert.alert('Sair da conta', 'Deseja encerrar sua sessão neste dispositivo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: async () => {
+        try {
+          await signOut();
+        } catch {
+          Alert.alert('Erro', 'Não foi possível encerrar a sessão.');
+        }
+      }},
+    ]);
+  }
+
+  async function handleSaveOpenAIKey() {
+    const normalizedKey = openaiKey.trim();
+    if (!/^sk-[A-Za-z0-9_-]{16,}$/.test(normalizedKey)) {
+      Alert.alert('Chave inválida', 'Informe uma chave da OpenAI válida, iniciada por sk-.');
+      return;
+    }
+
+    setIsSavingOpenaiKey(true);
+    try {
+      await saveOpenAIKey(normalizedKey);
+      setOpenaiKey('');
+      setShowOpenaiKey(false);
+      await refreshOpenAIKeyStatus();
+      Alert.alert('Chave salva', 'Sua chave foi criptografada e vinculada somente à sua conta.');
+    } catch (error) {
+      console.error('Failed to save OpenAI key:', error);
+      Alert.alert('Erro', 'Não foi possível salvar a chave da OpenAI.');
+    } finally {
+      setIsSavingOpenaiKey(false);
+    }
+  }
+
+  function handleDeleteOpenAIKey() {
+    Alert.alert('Remover chave', 'O assistente continuará funcionando no modo local.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Remover', style: 'destructive', onPress: async () => {
+        setIsSavingOpenaiKey(true);
+        try {
+          await deleteOpenAIKey();
+          setOpenaiKey('');
+          await refreshOpenAIKeyStatus();
+          Alert.alert('Chave removida', 'A chave da OpenAI foi excluída da sua conta.');
+        } catch (error) {
+          console.error('Failed to delete OpenAI key:', error);
+          Alert.alert('Erro', 'Não foi possível remover a chave da OpenAI.');
+        } finally {
+          setIsSavingOpenaiKey(false);
+        }
       }},
     ]);
   }
@@ -290,51 +324,73 @@ export function ProfileScreen() {
         <Section T={T} label="Inteligência artificial">
           <View style={{
             flexDirection: 'row', alignItems: 'center', gap: 14,
-            paddingHorizontal: 20, paddingVertical: 14,
-            borderBottomWidth: 1, borderBottomColor: T.border,
+            paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: T.border,
           }}>
             <Icon name="sparkle" size={18} color={T.text} stroke={1.8}/>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, color: T.text, fontWeight: '500', letterSpacing: -0.15 }}>Assistente IA</Text>
-              <Text style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>Gemini 2.5 Flash · {aiEnabled ? 'Ativo' : 'Inativo'}</Text>
-            </View>
-            <Toggle T={T} on={aiEnabled} onToggle={() => {
-              if (aiEnabled) { setAiEnabled(false); updateSetting('gemini_api_key', ''); setApiKey(''); }
-              else setAiEnabled(true);
-            }}/>
-          </View>
-
-          {aiEnabled && (
-            <View style={{ paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: T.border }}>
-              <Text style={{ fontSize: 13, color: T.text, fontWeight: '500', marginBottom: 8, letterSpacing: -0.15 }}>Chave da API</Text>
-              <View style={{
-                flexDirection: 'row', alignItems: 'center', gap: 10,
-                backgroundColor: T.bg, borderWidth: 1, borderColor: T.border,
-                borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
-              }}>
-                <Icon name="key" size={14} color={T.textFaint} stroke={1.8}/>
-                <TextInput
-                  value={apiKey}
-                  onChangeText={setApiKey}
-                  onBlur={handleSaveApiKey}
-                  onSubmitEditing={handleSaveApiKey}
-                  secureTextEntry={!showKey}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  placeholder="Cole sua API key aqui"
-                  placeholderTextColor={T.textDim}
-                  style={{ flex: 1, fontSize: 13, color: T.text, letterSpacing: 0.5, padding: 0 }}
-                />
-                <TouchableOpacity onPress={() => setShowKey(v => !v)} activeOpacity={0.7}>
-                  <Icon name={showKey ? 'eyeOff' : 'eye'} size={16} color={T.textDim} stroke={1.8}/>
-                </TouchableOpacity>
-              </View>
-              <Text style={{ fontSize: 11, color: T.textFaint, marginTop: 8 }}>
-                Grátis em aistudio.google.com
+              <Text style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>
+                {settings.openaiConfigured
+                  ? `OpenAI GPT-5.5 · Chave final ${settings.openaiKeyHint}`
+                  : 'Modo local · Cadastre sua chave abaixo'}
               </Text>
             </View>
-          )}
-
+            <Icon name={settings.openaiConfigured ? 'shield' : 'key'} size={18} color={settings.openaiConfigured ? T.success : T.warn} stroke={1.8}/>
+          </View>
+          <View style={{ paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: T.border }}>
+            <Text style={{ fontSize: 13, color: T.text, fontWeight: '600', marginBottom: 8 }}>
+              {settings.openaiConfigured ? 'Substituir chave da API' : 'Chave da API OpenAI'}
+            </Text>
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+              backgroundColor: T.bg, borderWidth: 1, borderColor: T.borderStrong,
+              borderRadius: 12, paddingHorizontal: 12, minHeight: 46,
+            }}>
+              <Icon name="key" size={15} color={T.textFaint} stroke={1.8}/>
+              <TextInput
+                value={openaiKey}
+                onChangeText={setOpenaiKey}
+                onSubmitEditing={handleSaveOpenAIKey}
+                secureTextEntry={!showOpenaiKey}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="sk-..."
+                placeholderTextColor={T.textFaint}
+                style={{ flex: 1, color: T.text, fontSize: 13, paddingVertical: 0 }}
+              />
+              <TouchableOpacity onPress={() => setShowOpenaiKey((value) => !value)} hitSlop={10}>
+                <Icon name={showOpenaiKey ? 'eyeOff' : 'eye'} size={16} color={T.textDim} stroke={1.8}/>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 11, color: T.textFaint, lineHeight: 16, marginTop: 8 }}>
+              A chave é criptografada no Supabase Vault. Depois de salva, ela não pode ser visualizada novamente.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <TouchableOpacity
+                onPress={handleSaveOpenAIKey}
+                disabled={isSavingOpenaiKey || !openaiKey.trim()}
+                activeOpacity={0.8}
+                style={{
+                  flex: 1, minHeight: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: T.accent, opacity: isSavingOpenaiKey || !openaiKey.trim() ? 0.5 : 1,
+                }}
+              >
+                {isSavingOpenaiKey
+                  ? <ActivityIndicator size="small" color={T.accentInk}/>
+                  : <Text style={{ color: T.accentInk, fontSize: 13, fontWeight: '700' }}>Salvar chave</Text>}
+              </TouchableOpacity>
+              {settings.openaiConfigured && (
+                <TouchableOpacity
+                  onPress={handleDeleteOpenAIKey}
+                  disabled={isSavingOpenaiKey}
+                  activeOpacity={0.8}
+                  style={{ minHeight: 42, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: T.danger, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: T.danger, fontSize: 13, fontWeight: '600' }}>Remover</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
           <SettingRow T={T} icon="zap" label="Comandos de exemplo" chevron last
             onPress={() => navigation.navigate('ExampleCommands')}/>
         </Section>
@@ -349,8 +405,13 @@ export function ProfileScreen() {
             chevron
             onPress={handleExportPdf}
           />
-          <SettingRow T={T} icon="shield" label="Privacidade" chevron onPress={() => Alert.alert('Privacidade', 'Todos os seus dados ficam no dispositivo. Nenhum dado é enviado a servidores, exceto as mensagens ao Gemini quando a IA está ativa.')}/>
+          <SettingRow T={T} icon="shield" label="Privacidade" chevron onPress={() => Alert.alert('Privacidade', 'Contas, mensagens e preferências são isoladas por usuário no banco. A chave da OpenAI fica protegida no servidor e nunca é enviada ao navegador.')}/>
           <SettingRow T={T} icon="trash" label="Limpar histórico do chat" danger last onPress={handleClearChat}/>
+        </Section>
+
+        <Section T={T} label="Conta">
+          <SettingRow T={T} icon="mail" label="E-mail" value={user?.email || ''}/>
+          <SettingRow T={T} icon="logout" label="Sair da conta" danger last onPress={handleSignOut}/>
         </Section>
 
         <Text style={{ textAlign: 'center', paddingVertical: 8, color: T.textFaint, fontSize: 11 }}>

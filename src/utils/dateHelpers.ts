@@ -139,7 +139,8 @@ export function parseYearMonth(text: string): string {
   };
 
   for (const [name, num] of Object.entries(months)) {
-    if (lower.includes(name)) {
+    const monthPattern = new RegExp(`(^|\\s)${name}(?=\\s|$|[,.!?])`, 'i');
+    if (monthPattern.test(lower)) {
       const year = new Date().getFullYear();
       return `${year}-${String(num).padStart(2, '0')}`;
     }
@@ -158,6 +159,20 @@ export function formatDisplayDate(isoDate: string): string {
   } catch {
     return isoDate;
   }
+}
+
+/**
+ * Formats the database creation timestamp using the device's local timezone.
+ */
+export function formatCreatedAt(isoDateTime?: string | null, includeTime = false): string {
+  if (!isoDateTime) return 'Não informado';
+
+  const date = new Date(isoDateTime);
+  if (!isValid(date)) return 'Não informado';
+
+  return includeTime
+    ? format(date, "dd/MM/yyyy 'às' HH:mm")
+    : format(date, 'dd/MM/yyyy');
 }
 
 /**

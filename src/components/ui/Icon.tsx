@@ -59,6 +59,7 @@ export function Icon({ name, size = 20, color = 'currentColor', stroke = 2 }: Ic
     moon: <Path {...props} d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"/>,
     sun: <><Circle cx="12" cy="12" r="4" fill="none" stroke={c} strokeWidth={s}/><Path {...props} d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/></>,
     lock: <><Path {...props} d="M6 11V8a6 6 0 0 1 12 0v3M5 11h14v9H5z"/></>,
+    mail: <><Path {...props} d="M3 5h18v14H3z"/><Path {...props} d="m3 6 9 7 9-7"/></>,
     key: <><Circle cx="8" cy="15" r="4" fill="none" stroke={c} strokeWidth={s}/><Path {...props} d="M11 12l10-10-3-3M16 7l3 3"/></>,
     logout: <><Path {...props} d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h11"/></>,
     card: <><Path {...props} d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7zM3 10h18"/></>,

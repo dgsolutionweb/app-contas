@@ -20,8 +20,9 @@ import type { Conta } from '../types';
 
 const SUGGESTIONS = [
   { label: 'Resumo do mês',     cmd: 'resumo do mês' },
-  { label: 'Listar pendentes',  cmd: 'listar pendentes' },
-  { label: 'Quanto já paguei?', cmd: 'quanto já paguei esse mês' },
+  { label: 'Insights',           cmd: 'analise meus gastos deste mês' },
+  { label: 'Comparar meses',     cmd: 'compare este mês com o anterior' },
+  { label: 'Previsão',           cmd: 'previsão dos próximos 3 meses' },
   { label: 'Adicionar conta',   cmd: 'adicionar ' },
 ];
 
@@ -150,8 +151,10 @@ export function ChatScreen() {
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: T.text, letterSpacing: -0.3 }}>Assistente</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: T.success }}/>
-            <Text style={{ fontSize: 12, color: T.success }}>online · Gemini 2.5</Text>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: settings.openaiConfigured ? T.success : T.warn }}/>
+            <Text style={{ fontSize: 12, color: settings.openaiConfigured ? T.success : T.warn }}>
+              {settings.openaiConfigured ? 'OpenAI GPT-5.5 · conexão protegida' : 'modo local · configure sua chave OpenAI'}
+            </Text>
           </View>
         </View>
       </View>

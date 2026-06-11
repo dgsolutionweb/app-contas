@@ -16,7 +16,15 @@ import {
 } from '../database/contasRepository';
 import { parseMessage } from '../utils/parser';
 import { getDefaultDueDate, currentYearMonth, addMonthsToISO } from '../utils/dateHelpers';
-import { parseWithGemini } from '../services/gemini';
+import { parseWithOpenAI } from '../services/openai';
+import {
+  formatCategoryAnalysis,
+  formatFinancialInsights,
+  formatForecast,
+  formatMonthComparison,
+  formatTopExpenses,
+  previousYearMonth,
+} from '../utils/financialInsights';
 import {
   formatAddSuccess,
   formatAddError,
@@ -129,8 +137,8 @@ export function useChat(db: SQLiteDatabase | null, settings: AppSettings) {
         }
       }
 
-      // Parse intent - try Gemini first if API key is set, fallback to local parser
-      let intent = await parseWithGemini(text, settings.geminiApiKey);
+      // Use OpenAI for natural-language understanding and keep the local parser as an offline fallback.
+      let intent = await parseWithOpenAI(text);
       if (!intent) {
         intent = parseMessage(text);
       }
@@ -391,6 +399,61 @@ export function useChat(db: SQLiteDatabase | null, settings: AppSettings) {
             break;
           }
 
+          case 'compare_months': {
+            const currentMonth = intent.yearMonth || currentYearMonth();
+            const previousMonth = previousYearMonth(currentMonth);
+            const [current, previous] = await Promise.all([
+              getMonthlySummary(db, currentMonth),
+              getMonthlySummary(db, previousMonth),
+            ]);
+            await addMessage({
+              role: 'bot', content: formatMonthComparison(current, previous), tipo: 'text',
+              criado_em: new Date().toISOString(),
+            });
+            break;
+          }
+
+          case 'top_expenses': {
+            const yearMonth = intent.yearMonth || currentYearMonth();
+            const bills = await getAllContas(db, 'todas');
+            await addMessage({
+              role: 'bot', content: formatTopExpenses(bills, yearMonth, intent.limit || 5), tipo: 'text',
+              criado_em: new Date().toISOString(),
+            });
+            break;
+          }
+
+          case 'category_analysis': {
+            const summary = await getMonthlySummary(db, intent.yearMonth || currentYearMonth());
+            await addMessage({
+              role: 'bot', content: formatCategoryAnalysis(summary), tipo: 'text',
+              criado_em: new Date().toISOString(),
+            });
+            break;
+          }
+
+          case 'forecast': {
+            const bills = await getAllContas(db, 'todas');
+            await addMessage({
+              role: 'bot', content: formatForecast(bills, intent.months || 3), tipo: 'text',
+              criado_em: new Date().toISOString(),
+            });
+            break;
+          }
+
+          case 'insights': {
+            const yearMonth = intent.yearMonth || currentYearMonth();
+            const [bills, summary] = await Promise.all([
+              getAllContas(db, 'todas'),
+              getMonthlySummary(db, yearMonth),
+            ]);
+            await addMessage({
+              role: 'bot', content: formatFinancialInsights(bills, summary), tipo: 'text',
+              criado_em: new Date().toISOString(),
+            });
+            break;
+          }
+
           case 'help': {
             await addMessage({
               role: 'bot',
@@ -422,7 +485,7 @@ export function useChat(db: SQLiteDatabase | null, settings: AppSettings) {
         setIsProcessing(false);
       }
     },
-    [db, addMessage, settings.geminiApiKey, settings.defaultDueDay, settings.cardClosingDay, pendingEdit]
+    [db, addMessage, settings.defaultDueDay, settings.cardClosingDay, pendingEdit]
   );
 
   const handleConfirm = useCallback(

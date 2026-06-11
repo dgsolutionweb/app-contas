@@ -10,6 +10,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon';
 import { Icon } from '../components/ui/Icon';
 import { CATEGORIES } from '../theme/tokens';
 import { daysUntil, formatDueShort, formatDateLong, formatBRL } from '../utils/billHelpers';
+import { formatCreatedAt } from '../utils/dateHelpers';
 import type { Conta } from '../types';
 
 function DetailRow({ T, label, value, icon, last }: { T: any; label: string; value: string; icon: string; last?: boolean }) {
@@ -113,6 +114,7 @@ export function BillDetailScreen() {
         <View style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
           <Card T={T} style={{ padding: 0, paddingHorizontal: 20 }}>
             <DetailRow T={T} label="Vencimento" value={formatDateLong(bill.vencimento)} icon="calendar"/>
+            <DetailRow T={T} label="Cadastrada em" value={formatCreatedAt(bill.criado_em, true)} icon="clock"/>
             <DetailRow T={T} label="Categoria" value={cat.label} icon="tag"/>
             <DetailRow T={T} label="Recorrência" value={bill.recorrente ? 'Mensal' : 'Conta única'} icon="repeat"
               last={!bill.nota}/>
